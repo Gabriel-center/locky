@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#000000">
+    <title>System Monitor</title>
+    <style>
+        /* OLED Battery Saving & Reset */
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000000;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            color: #ffffff;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Initial Start Button */
+        #start-btn {
+            padding: 15px 30px;
+            border: 1px solid #333;
+            background: #000;
+            color: #444;
+            font-size: 14px;
+            cursor: pointer;
+            border-radius: 5px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            z-index: 100;
+        }
+
+        /* Main Monitoring Interface */
+        #interface {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            width: 90%;
+            height: 100%;
+            max-width: 400px;
+            animation: fadeIn 1s ease;
+            position: relative;
+        }
+
+        /* 
+           Camera Engulfing Ring Container 
+           Positioned Absolute Top Center
+        */
+        .camera-overlay {
+            position: absolute;
+            top: 0px; /* Very top edge */
+            left: 50%;
+            transform: translateX(-50%); /* Perfectly centered horizontally */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding-top: 6px; /* Slight push down so the ring surrounds the camera */
+        }
+
+        .camera-ring {
+            width: 27px;  /* Sized to fit around a hole-punch camera */
+            height: 27px;
+            border: 5px solid red; /* Hollow ring */
+            border-radius: 50%;
+            box-shadow: 0 0 8px rgba(255, 0, 0, 0.8);
+            background: transparent;
+            animation: pulse 1s infinite;
+            position: relative;
+        }
+
+        /* Text positioned relative to the ring, but pushed to the right */
+        .rec-text {
+            position: absolute;
+            left: 35px; /* Pushes text to the right of the ring */
+            font-size: 14px; 
+            color: red; 
+            font-family: monospace; 
+            font-weight: bold;
+            letter-spacing: 2px;
+            white-space: nowrap;
+        }
+
+        /* Warning Icon */
+        .warning-icon {
+            width: 140px;
+            height: 140px;
+            margin-bottom: 30px;
+        }
+
+        /* The Warning Text */
+        .warning-text {
+            font-size: 16px;
+            line-height: 1.6;
+            color: #ffffff;
+            font-weight: 500;
+            margin-bottom: 10px;
+            text-shadow: 0 0 10px rgba(0,0,0,1);
+        }
+
+        .highlight-red {
+            color: #ff3b30;
+            font-weight: bold;
+            display: block;
+            margin-top: 25px;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* Lock Icon Area */
+        .lock-btn {
+            margin-top: 50px;
+            cursor: pointer;
+            opacity: 0.8;
+            padding: 20px;
+            transition: opacity 0.2s, transform 0.1s;
+        }
+
+        .lock-btn:active {
+            opacity: 1;
+            transform: scale(0.9);
+        }
+
+        .lock-icon {
+            width: 45px;
+            height: 45px;
+            fill: #ffffff;
+        }
+
+        /* Password Modal Overlay */
+        #password-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.98);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 999;
+        }
+
+        input {
+            background: transparent;
+            border: none;
+            border-bottom: 2px solid #333;
+            color: white;
+            font-size: 24px;
+            text-align: center;
+            width: 200px;
+            padding: 10px;
+            margin-bottom: 20px;
+            outline: none;
+            letter-spacing: 5px;
+            font-family: monospace;
+        }
+
+        input:focus {
+            border-bottom: 2px solid #ff3b30;
+        }
+
+        .unlock-btn {
+            background: #ff3b30;
+            color: black;
+            border: none;
+            padding: 12px 30px;
+            font-weight: bold;
+            font-size: 16px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .error-msg {
+            color: #ff3b30;
+            font-size: 12px;
+            margin-top: 15px;
+            height: 15px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; box-shadow: 0 0 5px red; border-color: red;}
+            50% { opacity: 0.5; box-shadow: 0 0 0px red; border-color: darkred;}
+            100% { opacity: 1; box-shadow: 0 0 5px red; border-color: red;}
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Start Button to trigger Fullscreen -->
+    <button id="start-btn" onclick="startSystem()">ATIVAR SISTEMA</button>
+
+    <!-- Main Interface -->
+    <div id="interface">
+        
+        <!-- Camera Engulfing Overlay -->
+        <div class="camera-overlay">
+            <div class="camera-ring"></div>
+            <span class="rec-text">REC</span>
+        </div>
+
+        <!-- Warning Triangle SVG -->
+        <svg class="warning-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M10.29 3.86L1.82 18C1.64556 18.3024 1.55293 18.6453 1.55201 18.9945C1.55108 19.3437 1.64189 19.6871 1.81442 19.9894C1.98695 20.2917 2.23483 20.5417 2.53208 20.7133C2.82933 20.8849 3.165 20.9719 3.50499 20.9649H20.5C20.8407 20.9715 21.177 20.8839 21.4746 20.7115C21.7722 20.5391 22.0203 20.288 22.1927 19.985C22.365 19.6821 22.4554 19.338 22.4539 18.9882C22.4523 18.6384 22.3589 18.2951 22.184 17.992L13.71 3.86C13.5317 3.56614 13.2807 3.32313 12.9812 3.15449C12.6817 2.98585 12.3437 2.89722 12 2.89722C11.6563 2.89722 11.3183 2.98585 11.0188 3.15449C10.7193 3.32313 10.4683 3.56614 10.29 3.86Z" fill="#FF0000" stroke="#FF0000" stroke-width="2" stroke-linejoin="round"/>
+            <path d="M12 9V13" stroke="black" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M12 17H12.01" stroke="black" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+
+        <!-- Warning Text -->
+        <div class="warning-text">
+            Esse celular está sob monitoramento remoto de GPS, a câmera está transmitindo as imagens, e o sensor de movimento está ativado.
+            <span class="highlight-red">Uso apenas com acesso autorizado:</span>
+        </div>
+
+        <!-- Lock Button -->
+        <div class="lock-btn" onclick="openPassword()">
+            <svg class="lock-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <!-- Lock Body -->
+                <path d="M19 11H5C3.89543 11 3 11.8954 3 13V20C3 21.1046 3.89543 22 5 22H19C20.1046 22 21 21.1046 21 20V13C21 11.8954 20.1046 11 19 11Z" fill="white"/>
+                <!-- Lock Bolt -->
+                <path d="M7 11V7C7 4.23858 9.23858 2 12 2C14.7614 2 17 4.23858 17 7V11H15V7C15 5.34315 13.6569 4 12 4C10.3431 4 9 5.34315 9 7V11H7Z" fill="white"/>
+            </svg>
+        </div>
+
+    </div>
+
+    <!-- Password Modal -->
+    <div id="password-modal">
+        <div style="font-size:14px; margin-bottom: 20px; color:#aaa; letter-spacing: 1px;">INSIRA CÓDIGO DE ACESSO</div>
+        <input type="password" id="passInput" maxlength="8">
+        <button class="unlock-btn" onclick="checkPassword()">DESBLOQUEAR</button>
+        <div class="error-msg" id="errorMsg">SENHA INCORRETA</div>
+    </div>
+
+    <script>
+        const passInput = document.getElementById('passInput');
+        
+        function startSystem() {
+            var elem = document.documentElement;
+            if (elem.requestFullscreen) {
+                elem.requestFullscreen();
+            } else if (elem.webkitRequestFullscreen) {
+                elem.webkitRequestFullscreen();
+            } else if (elem.msRequestFullscreen) {
+                elem.msRequestFullscreen();
+            }
+
+            document.getElementById('start-btn').style.display = 'none';
+            document.getElementById('interface').style.display = 'flex';
+        }
+
+        function openPassword() {
+            document.getElementById('password-modal').style.display = 'flex';
+            passInput.value = '';
+            document.getElementById('errorMsg').style.opacity = '0';
+            setTimeout(() => passInput.focus(), 100);
+        }
+
+        function checkPassword() {
+            const password = passInput.value;
+            
+            if (password === "acesso01") {
+                try {
+                    window.close();
+                } catch (e) {
+                    console.log("Auto-close prevented");
+                }
+
+                if (document.exitFullscreen) {
+                    document.exitFullscreen().catch(() => {});
+                } else if (document.webkitExitFullscreen) {
+                    document.webkitExitFullscreen();
+                }
+                
+                document.body.innerHTML = '';
+                document.body.style.backgroundColor = "white";
+                
+                try {
+                    window.history.back();
+                } catch(e) {}
+
+            } else {
+                const errorMsg = document.getElementById('errorMsg');
+                errorMsg.style.opacity = '1';
+                passInput.value = '';
+                passInput.focus();
+                
+                passInput.style.transform = "translateX(10px)";
+                setTimeout(() => { passInput.style.transform = "translateX(-10px)"; }, 50);
+                setTimeout(() => { passInput.style.transform = "translateX(0px)"; }, 100);
+            }
+        }
+
+        passInput.addEventListener("keypress", function(event) {
+            if (event.key === "Enter") {
+                checkPassword();
+            }
+        });
+
+        document.getElementById('password-modal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                this.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>
